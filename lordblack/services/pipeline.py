@@ -110,14 +110,21 @@ async def run_turn(user_text: str, history: list[dict], *,
                "content": (system_prefix + "\n\n" if system_prefix else "") + LOCAL_SYSTEM +
                           (("\n\n" + mem_block) if mem_block else "")}
 
-    async def local_stream(messages, mdl, temperature=None):
-        pieces = []
-        async for tok in provider.chat(messages, mdl, stream=True,
-                                       temperature=temperature or rt_cfg.get("temperature", 0.7),
-                                       max_tokens=max(512, rt_cfg.get("context_tokens", 2048) // 2)):
-            pieces.append(tok)
-            yield tok
-        return "".join(pieces)
+    class _LocalGen:
+        """Streams tokens AND records the full text (async generators can't
+        `return` a value, so callers read .text after the loop)."""
+
+        def __init__(self):
+            self.text = ""
+
+        async def run(self, messages, mdl, temperature=None):
+            pieces = []
+            async for tok in provider.chat(messages, mdl, stream=True,
+                                           temperature=temperature or rt_cfg.get("temperature", 0.7),
+                                           max_tokens=max(512, rt_cfg.get("context_tokens", 2048) // 2)):
+                pieces.append(tok)
+                yield tok
+            self.text = "".join(pieces)
 
     # ================= local-to-local dialog mode =================
     if mode == "dialog" and partner:
@@ -137,11 +144,12 @@ async def run_turn(user_text: str, history: list[dict], *,
                                             f"\n\nYOUR TURN ({speaker}): {current_prompt}"}] \
                 if transcript else [sys_msg, {"role": "user", "content": current_prompt}]
             t2 = _now()
+            gen = _LocalGen()
             buf = []
-            async for tok in local_stream(msgs, mdl):
+            async for tok in gen.run(msgs, mdl):
                 buf.append(tok)
                 yield tr.token(tok, speaker)
-            reply = "".join(buf)
+            reply = gen.text or "".join(buf)
             transcript.append(f"[{speaker}/{mdl}]: {reply}")
             yield tr.event(f"dialog-turn-{i+1}", "ok", f"{speaker}: {mdl}",
                            int((_now() - t2) * 1000))
@@ -176,11 +184,12 @@ async def run_turn(user_text: str, history: list[dict], *,
 
     while True:
         t3 = _now()
+        gen = _LocalGen()
         buf = []
-        async for tok in local_stream(messages, model):
+        async for tok in gen.run(messages, model):
             buf.append(tok)
             yield tr.token(tok)
-        reply = "".join(buf)
+        reply = gen.text or "".join(buf)
         yield tr.event("local-generation", "ok", f"{model}", int((_now() - t3) * 1000))
 
         m = DELEGATE_RE.search(reply) if max_delegations else None
