@@ -1,0 +1,12 @@
+# LordBlack Harness — core deps only (kept minimal for low-spec machines, §2/§4)
+fastapi>=0.110
+uvicorn>=0.29
+httpx>=0.27
+pydantic>=2.6
+cryptography>=42.0
+
+# Optional extras (NOT required for core offline operation):
+# onnxruntime>=1.16        # local MiniLM-class ONNX embeddings (§4)
+# sentence-transformers    # alternative embedding backend
+# bleak>=0.20              # opt-in Bluetooth module (§8)
+# llama-cpp-python         # direct llama.cpp bindings (§2)

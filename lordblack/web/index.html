@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LordBlack Harness</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <!-- Top Bar -->
+    <header class="top-bar">
+        <div class="top-bar-left">
+            <h1 class="app-title">LordBlack Harness</h1>
+            <span class="version-badge">v1.0.0</span>
+            <span class="status-indicator online" id="connectionStatus">● Online</span>
+        </div>
+        
+        <div class="top-bar-center">
+            <input type="text" class="search-bar" placeholder="Search commands, files, memory..." id="globalSearch">
+        </div>
+        
+        <div class="top-bar-right">
+            <span class="latency-indicator" id="latencyDisplay">⚡ 45ms</span>
+            <button class="icon-btn" id="settingsBtn" title="Settings">⚙️</button>
+        </div>
+    </header>
+
+    <!-- Main Workspace (3-column layout) -->
+    <main class="workspace">
+        <!-- Left Panel: File Access & Memory -->
+        <aside class="left-panel">
+            <section class="panel-section file-access">
+                <div class="panel-header">
+                    <h3>FILE ACCESS</h3>
+                    <button class="small-btn" id="grantFolderBtn">+ Grant Folder</button>
+                </div>
+                <div class="file-tree" id="fileTree">
+                    <p class="empty-state">No folders connected</p>
+                </div>
+            </section>
+
+            <section class="panel-section memory-retrieval">
+                <div class="panel-header">
+                    <h3>MEMORY RETRIEVAL</h3>
+                    <button class="small-btn" id="manageMemoryBtn">Manage</button>
+                </div>
+                <div class="memory-facts" id="memoryFacts">
+                    <p class="empty-state">No context retrieved yet</p>
+                </div>
+            </section>
+        </aside>
+
+        <!-- Center Panel: Chat & Workspace -->
+        <section class="center-panel">
+            <div class="model-indicators" id="modelIndicators">
+                <span class="model-badge local">🖥️ Local: Qwen2.5-7B</span>
+                <span class="model-badge external hidden" id="externalModelBadge">☁️ External: None</span>
+            </div>
+
+            <div class="chat-container" id="chatContainer">
+                <div class="welcome-message">
+                    <h2>Welcome to LordBlack Harness</h2>
+                    <p>Connect to a local model in Settings to begin chatting.</p>
+                    <p>All conversations stay on your device unless you explicitly enable external APIs.</p>
+                </div>
+            </div>
+
+            <div class="agent-trace hidden" id="agentTrace">
+                <div class="trace-header" id="traceHeader">
+                    <span>▼ Live Agent Run Trace</span>
+                </div>
+                <div class="trace-content" id="traceContent"></div>
+            </div>
+
+            <div class="chat-input-area">
+                <div class="input-toolbar">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="ragToggle" checked>
+                        <span>RAG Memory</span>
+                    </label>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="agenticToggle">
+                        <span>Agentic Mode</span>
+                    </label>
+                    <span class="token-counter" id="tokenCounter">0 tokens</span>
+                </div>
+                
+                <div class="input-row">
+                    <textarea 
+                        class="chat-input" 
+                        id="chatInput" 
+                        placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
+                        rows="1"
+                    ></textarea>
+                    <button class="send-btn" id="sendBtn">Send ➤</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: AI Activity -->
+        <aside class="right-panel">
+            <section class="panel-section ai-activity">
+                <div class="panel-header">
+                    <h3>AI ACTIVITY</h3>
+                    <button class="small-btn" id="clearActivityBtn">Clear</button>
+                </div>
+                <div class="activity-trace" id="activityTrace">
+                    <p class="empty-state">Waiting for activity...</p>
+                </div>
+                <div class="log-console" id="logConsole">
+                    <div class="log-header">
+                        <span>Raw Log Console</span>
+                        <button class="tiny-btn" id="expandLogBtn">Expand</button>
+                    </div>
+                    <pre class="log-content" id="logContent"></pre>
+                </div>
+            </section>
+        </aside>
+    </main>
+
+    <!-- Bottom Status Bar -->
+    <footer class="status-bar">
+        <div class="status-left">
+            <canvas class="system-sparkline" id="systemSparkline" width="120" height="30"></canvas>
+        </div>
+        
+        <div class="status-center">
+            <span class="stat-item">CPU: <strong id="cpuUsage">--%</strong></span>
+            <span class="stat-item">RAM: <strong id="ramUsage">-- GB</strong></span>
+            <span class="stat-item">VRAM: <strong id="vramUsage">N/A</strong></span>
+        </div>
+        
+        <div class="status-right">
+            <span class="active-agent" id="activeAgentName">Default Assistant</span>
+        </div>
+    </footer>
+
+    <!-- Settings Modal -->
+    <div class="modal hidden" id="settingsModal">
+        <div class="modal-content settings-content">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="close-btn" id="closeSettingsBtn">×</button>
+            </div>
+            
+            <div class="settings-layout">
+                <nav class="settings-nav">
+                    <button class="settings-tab active" data-tab="general">General</button>
+                    <button class="settings-tab" data-tab="models">Model & API Integrations</button>
+                    <button class="settings-tab" data-tab="agents">Node Networks</button>
+                    <button class="settings-tab" data-tab="system">System & Logs</button>
+                    <button class="settings-tab" data-tab="database">Database</button>
+                    <button class="settings-tab" data-tab="security">Security</button>
+                </nav>
+                
+                <div class="settings-body">
+                    <!-- General Tab -->
+                    <section class="settings-pane active" id="pane-general">
+                        <h3>General Configuration</h3>
+                        
+                        <div class="form-group">
+                            <label for="maxContextTokens">Max Context Tokens</label>
+                            <input type="number" id="maxContextTokens" value="4096" min="512" max="32768">
+                            <small>Lower this if running on low-RAM devices</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="embeddingMethod">Embedding Method</label>
+                            <select id="embeddingMethod">
+                                <option value="minilm-onnx">MiniLM ONNX (Recommended)</option>
+                                <option value="keyword">Keyword Search (Low-spec fallback)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="memoryTopK">Memory Retrieval: Top-K Chunks</label>
+                            <input type="number" id="memoryTopK" value="5" min="1" max="20">
+                        </div>
+                        
+                        <button class="primary-btn" id="saveGeneralBtn">Save Settings</button>
+                    </section>
+
+                    <!-- Models Tab -->
+                    <section class="settings-pane" id="pane-models">
+                        <h3>Local Model Runtime</h3>
+                        
+                        <div class="card lmstudio-card">
+                            <h4>LM Studio / Local Hub</h4>
+                            <div class="form-group">
+                                <label for="providerUrl">Server URL</label>
+                                <input type="text" id="providerUrl" placeholder="http://localhost:1234/v1">
+                            </div>
+                            
+                            <div class="btn-row">
+                                <button class="primary-btn" id="connectProviderBtn">Connect</button>
+                                <button class="secondary-btn" id="disconnectProviderBtn">Disconnect</button>
+                                <button class="secondary-btn" id="testConnectionBtn">Test Connection</button>
+                            </div>
+                            
+                            <div class="detection-status" id="detectionStatus">
+                                <p>Detection inactive</p>
+                            </div>
+                            
+                            <div class="detected-models" id="detectedModels">
+                                <h5>Available Models:</h5>
+                                <ul id="modelList"></ul>
+                            </div>
+                        </div>
+
+                        <h3>Cloud API Providers</h3>
+                        
+                        <div class="card provider-card" data-provider="anthropic">
+                            <h4>Anthropic Claude</h4>
+                            <div class="provider-status">
+                                <span class="status-dot" id="anthropicStatus"></span>
+                                <span id="anthropicStatusText">Not configured</span>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="anthropicKey">API Key</label>
+                                <div class="key-input-wrapper">
+                                    <input type="password" id="anthropicKey" placeholder="sk-ant-...">
+                                    <button class="reveal-btn" data-target="anthropicKey">👁️</button>
+                                </div>
+                            </div>
+                            
+                            <div class="btn-row">
+                                <button class="secondary-btn" id="verifyAnthropicBtn">Verify</button>
+                                <button class="secondary-btn" id="modifyAnthropicBtn">Modify</button>
+                            </div>
+                        </div>
+
+                        <div class="card provider-card" data-provider="openai">
+                            <h4>OpenAI GPT</h4>
+                            <div class="provider-status">
+                                <span class="status-dot" id="openaiStatus"></span>
+                                <span id="openaiStatusText">Not configured</span>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="openaiKey">API Key</label>
+                                <div class="key-input-wrapper">
+                                    <input type="password" id="openaiKey" placeholder="sk-...">
+                                    <button class="reveal-btn" data-target="openaiKey">👁️</button>
+                                </div>
+                            </div>
+                            
+                            <div class="btn-row">
+                                <button class="secondary-btn" id="verifyOpenaiBtn">Verify</button>
+                                <button class="secondary-btn" id="modifyOpenaiBtn">Modify</button>
+                            </div>
+                        </div>
+
+                        <div class="card provider-card" data-provider="openrouter">
+                            <h4>OpenRouter</h4>
+                            <div class="provider-status">
+                                <span class="status-dot" id="openrouterStatus"></span>
+                                <span id="openrouterStatusText">Not configured</span>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="openrouterKey">API Key</label>
+                                <div class="key-input-wrapper">
+                                    <input type="password" id="openrouterKey" placeholder="sk-or-...">
+                                    <button class="reveal-btn" data-target="openrouterKey">👁️</button>
+                                </div>
+                            </div>
+                            
+                            <div class="btn-row">
+                                <button class="secondary-btn" id="verifyOpenrouterBtn">Verify</button>
+                                <button class="secondary-btn" id="modifyOpenrouterBtn">Modify</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Agents Tab -->
+                    <section class="settings-pane" id="pane-agents">
+                        <h3>Agent Builder Dashboard</h3>
+                        <p>Create and host custom AI agents locally.</p>
+                        
+                        <button class="primary-btn" id="newAgentBtn">+ New Agent</button>
+                        
+                        <div class="agent-list" id="agentList">
+                            <p class="empty-state">No agents created yet</p>
+                        </div>
+                    </section>
+
+                    <!-- System Tab -->
+                    <section class="settings-pane" id="pane-system">
+                        <h3>System & Logs</h3>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="verboseLogging">
+                                Enable Verbose Logging
+                            </label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="logLevel">Log Level</label>
+                            <select id="logLevel">
+                                <option value="info">Info</option>
+                                <option value="debug">Debug</option>
+                                <option value="warning">Warning</option>
+                                <option value="error">Error</option>
+                            </select>
+                        </div>
+                        
+                        <button class="secondary-btn" id="downloadLogsBtn">Download Logs</button>
+                    </section>
+
+                    <!-- Database Tab -->
+                    <section class="settings-pane" id="pane-database">
+                        <h3>Database Management</h3>
+                        
+                        <div class="stats-grid">
+                            <div class="stat-box">
+                                <span class="stat-label">Memory Entries</span>
+                                <span class="stat-value" id="dbMemoryCount">0</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Chat History</span>
+                                <span class="stat-value" id="dbChatCount">0</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">Database Size</span>
+                                <span class="stat-value" id="dbSize">0 MB</span>
+                            </div>
+                        </div>
+                        
+                        <div class="btn-row">
+                            <button class="secondary-btn" id="exportDbBtn">Export Database</button>
+                            <button class="danger-btn" id="clearMemoryBtn">Clear All Memory</button>
+                        </div>
+                    </section>
+
+                    <!-- Security Tab -->
+                    <section class="settings-pane" id="pane-security">
+                        <h3>Privacy & Security</h3>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="internetEnabled">
+                                Allow Internet Access (External APIs)
+                            </label>
+                            <small>When disabled, all cloud API calls are blocked at the routing layer</small>
+                        </div>
+                        
+                        <div class="permission-list">
+                            <h4>Granted Permissions</h4>
+                            <ul id="permissionsList">
+                                <li>No permissions granted</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="privacy-note">
+                            <h4>🔒 Privacy Guarantee</h4>
+                            <p>All user data stays on this device. External models cannot access memory storage. 
+                            See <a href="#" id="viewPrivacyLink">Privacy Policy</a> for details.</p>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Memory Management Modal -->
+    <div class="modal hidden" id="memoryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Memory Management</h2>
+                <button class="close-btn" id="closeMemoryBtn">×</button>
+            </div>
+            
+            <div class="memory-actions">
+                <button class="primary-btn" id="uploadMemoryFileBtn">Upload Files</button>
+                <button class="secondary-btn" id="addMemoryEntryBtn">Add Entry</button>
+            </div>
+            
+            <div class="memory-entries" id="memoryEntries">
+                <p class="empty-state">No memory entries yet</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
